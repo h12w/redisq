@@ -50,8 +50,8 @@ func (p *JobQ) run() error {
 }
 
 func (p *JobQ) process(c *Q) {
+	job := p.newJob()
 	for {
-		job := p.newJob()
 		if err := p.inputQ.PopTo(c, &job); err != nil {
 			continue
 		}
