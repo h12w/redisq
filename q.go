@@ -11,11 +11,11 @@ type Q struct {
 	pool *redis.Pool
 }
 
-func New(name string, pool *redis.Pool) (*Q, error) {
+func New(name string, pool *redis.Pool) *Q {
 	return &Q{
 		Name: name,
 		pool: pool,
-	}, nil
+	}
 }
 
 func (q *Q) Put(v interface{}) error {

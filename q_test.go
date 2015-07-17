@@ -45,7 +45,7 @@ type testStruct struct {
 }
 
 func TestEncoding(t *testing.T) {
-	q := newQ(t, "redisq-encoding")
+	q := newQ("redisq-encoding")
 	defer q.Delete()
 	s := testStruct{
 		I: 1,
@@ -105,7 +105,7 @@ func TestResume(t *testing.T) {
 		}
 	}
 	{
-		q := newQ(t, name)
+		q := newQ(name)
 		var i int
 		if err := q.Pop(&i); err != nil {
 			t.Fatal(err)
@@ -163,16 +163,12 @@ func TestPopTo(t *testing.T) {
 	}
 }
 
-func newQ(t *testing.T, name string) *Q {
-	q, err := New(name, redisCache.Pool())
-	if err != nil {
-		t.Fatal(err)
-	}
-	return q
+func newQ(name string) *Q {
+	return New(name, redisCache.Pool())
 }
 
 func newIntQ(t *testing.T, name string, is ...int) *Q {
-	q := newQ(t, name)
+	q := newQ(name)
 	for _, i := range is {
 		if err := q.Put(i); err != nil {
 			t.Fatal(err)
