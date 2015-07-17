@@ -55,18 +55,24 @@ func (p *JobQ) resume() error {
 	c := p.pool.Get()
 	defer c.Close()
 	cntKey := p.Name + ":consumer:count"
-	cnt, err := redis.Int(c.Do("GET", cntKey))
+	exists, err := redis.Bool(c.Do("EXISTS", cntKey))
 	if err != nil {
-		return nil // assume first time
+		return err
 	}
-	for i := 0; i < cnt; i++ {
-		n, err := p.consumers[i].Len()
+	if exists {
+		cnt, err := redis.Int(c.Do("GET", cntKey))
 		if err != nil {
 			return err
 		}
-		for j := 0; j < n; j++ {
-			if err := p.consumers[i].PopTo(p.inputQ, nil); err != nil {
+		for i := 0; i < cnt; i++ {
+			n, err := p.consumers[i].Len()
+			if err != nil {
 				return err
+			}
+			for j := 0; j < n; j++ {
+				if err := p.consumers[i].PopTo(p.inputQ, nil); err != nil {
+					return err
+				}
 			}
 		}
 	}
