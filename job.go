@@ -17,50 +17,67 @@ type JobQ struct {
 	doneQ     *Q
 	failQ     *Q
 	newJob    func() Job
+	errCh     chan error
+}
+
+type JobQError struct {
+	Msg string
+	Job Job
+	Err error
+}
+
+func (e *JobQError) Error() string {
+	return e.Msg
 }
 
 func NewJobQ(name string, consumerCount int, newJob func() Job, pool *redis.Pool) (*JobQ, error) {
-	proxy := &JobQ{
+	q := &JobQ{
 		Name:      name,
 		inputQ:    New(name+":job", pool),
 		consumers: make([]*Q, consumerCount),
 		doneQ:     New(name+":done", pool),
 		failQ:     New(name+":done", pool),
 		newJob:    newJob,
+		errCh:     make(chan error),
 	}
-	for i := range proxy.consumers {
-		proxy.consumers[i] = New(name+":consumer:"+strconv.Itoa(i), pool)
+	for i := range q.consumers {
+		q.consumers[i] = New(name+":consumer:"+strconv.Itoa(i), pool)
 	}
 	// TODO: move working back to job queue
-	if err := proxy.run(); err != nil {
-		return nil, err
-	}
-	return proxy, nil
+	return q, nil
 }
 
 func (p *JobQ) Put(job Job) error {
 	return p.inputQ.Put(job)
 }
 
-func (p *JobQ) run() error {
+func (p *JobQ) Consume() <-chan error {
 	for _, c := range p.consumers {
 		go p.process(c)
 	}
-	return nil
+	return p.errCh
 }
 
-func (p *JobQ) process(c *Q) {
-	job := p.newJob()
+func (p *JobQ) process(consumer *Q) {
 	for {
-		if err := p.inputQ.PopTo(c, &job); err != nil {
+		job := p.newJob()
+		if err := p.inputQ.PopTo(consumer, &job); err != nil {
+			p.sendErr("fail to get job from input queue", job, err)
 			continue
 		}
 		if err := job.Do(); err != nil {
-			if err := c.PopTo(p.failQ, nil); err != nil {
+			p.sendErr("fail to do the job", job, err)
+			if err := consumer.PopTo(p.failQ, nil); err != nil {
+				p.sendErr("fail to put job into the fail queue", job, err)
 			}
 			continue
 		}
-		if err := c.PopTo(p.doneQ, nil); err != nil {
+		if err := consumer.PopTo(p.doneQ, nil); err != nil {
+			p.sendErr("fail to pu job into the done queue", job, err)
 		}
 	}
+}
+
+func (p *JobQ) sendErr(msg string, job Job, err error) {
+	p.errCh <- &JobQError{Msg: msg, Job: job, Err: err}
 }
