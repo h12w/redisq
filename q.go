@@ -72,3 +72,9 @@ func (q *Q) Delete() error {
 	_, err := c.Do("DEL", q.Name)
 	return err
 }
+
+func (q *Q) Len() (int, error) {
+	c := q.pool.Get()
+	defer c.Close()
+	return redis.Int(c.Do("LLEN", q.Name))
+}

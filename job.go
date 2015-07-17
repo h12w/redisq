@@ -12,6 +12,7 @@ type Job interface {
 
 type JobQ struct {
 	Name      string
+	pool      *redis.Pool
 	inputQ    *Q
 	consumers []*Q
 	doneQ     *Q
@@ -33,6 +34,7 @@ func (e *JobQError) Error() string {
 func NewJobQ(name string, consumerCount int, newJob func() Job, pool *redis.Pool) (*JobQ, error) {
 	q := &JobQ{
 		Name:      name,
+		pool:      pool,
 		inputQ:    New(name+":input", pool),
 		consumers: make([]*Q, consumerCount),
 		doneQ:     New(name+":done", pool),
@@ -43,8 +45,33 @@ func NewJobQ(name string, consumerCount int, newJob func() Job, pool *redis.Pool
 	for i := range q.consumers {
 		q.consumers[i] = New(name+":consumer:"+strconv.Itoa(i), pool)
 	}
-	// TODO: move working back to job queue
+	if err := q.resume(); err != nil {
+		return nil, err
+	}
 	return q, nil
+}
+
+func (p *JobQ) resume() error {
+	c := p.pool.Get()
+	defer c.Close()
+	cntKey := p.Name + ":consumer:count"
+	cnt, err := redis.Int(c.Do("GET", cntKey))
+	if err != nil {
+		return nil // assume first time
+	}
+	for i := 0; i < cnt; i++ {
+		n, err := p.consumers[i].Len()
+		if err != nil {
+			return err
+		}
+		for j := 0; j < n; j++ {
+			if err := p.consumers[i].PopTo(p.inputQ, nil); err != nil {
+				return err
+			}
+		}
+	}
+	_, err = c.Do("SET", cntKey, len(p.consumers))
+	return err
 }
 
 func (p *JobQ) Put(job Job) error {
