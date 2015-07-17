@@ -33,10 +33,10 @@ func (e *JobQError) Error() string {
 func NewJobQ(name string, consumerCount int, newJob func() Job, pool *redis.Pool) (*JobQ, error) {
 	q := &JobQ{
 		Name:      name,
-		inputQ:    New(name+":job", pool),
+		inputQ:    New(name+":input", pool),
 		consumers: make([]*Q, consumerCount),
 		doneQ:     New(name+":done", pool),
-		failQ:     New(name+":done", pool),
+		failQ:     New(name+":fail", pool),
 		newJob:    newJob,
 		errCh:     make(chan error),
 	}

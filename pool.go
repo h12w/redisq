@@ -6,17 +6,23 @@ import (
 	"github.com/garyburd/redigo/redis"
 )
 
-func NewPool(addr, password string) *redis.Pool {
+type Config struct {
+	Addr     string
+	Password string
+	Name     string
+}
+
+func NewPool(config *Config) *redis.Pool {
 	return &redis.Pool{
 		MaxIdle:     3,
 		IdleTimeout: 240 * time.Second,
 		Dial: func() (redis.Conn, error) {
-			conn, err := redis.Dial("tcp", addr)
+			conn, err := redis.Dial("tcp", config.Addr)
 			if err != nil {
 				return nil, err
 			}
-			if password != "" {
-				if _, err := conn.Do("AUTH", password); err != nil {
+			if config.Password != "" {
+				if _, err := conn.Do("AUTH", config.Password); err != nil {
 					conn.Close()
 					return nil, err
 				}
