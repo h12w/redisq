@@ -15,10 +15,10 @@ func heartBeatExists(pool *redis.Pool, prefix string) (bool, error) {
 
 func startHeartBeat(pool *redis.Pool, prefix string, sec int, errCh chan error) {
 	c := pool.Get()
-	defer c.Close()
 	key := prefix + ":heartbeat"
 	ticker := time.NewTicker(time.Duration(sec) * time.Second)
 	go func() {
+		defer c.Close()
 		for _ = range ticker.C {
 			_, err := c.Do("SETEX", key, sec, true)
 			if err != nil {
