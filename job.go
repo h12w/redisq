@@ -1,6 +1,7 @@
 package redisq
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/garyburd/redigo/redis"
@@ -32,6 +33,15 @@ func (e *JobQError) Error() string {
 }
 
 func NewJobQ(name string, consumerCount int, newJob func() Job, pool *redis.Pool) (*JobQ, error) {
+	isConflict, err := heartBeatExists(pool, name)
+	if err != nil {
+		return nil, err
+	}
+	if isConflict {
+		return nil, fmt.Errorf("job queue %s already exists", name)
+	}
+	errCh := make(chan error)
+	startHeartBeat(pool, name, 5, errCh)
 	q := &JobQ{
 		Name:      name,
 		pool:      pool,
@@ -40,7 +50,7 @@ func NewJobQ(name string, consumerCount int, newJob func() Job, pool *redis.Pool
 		doneQ:     New(name+":done", pool),
 		failQ:     New(name+":fail", pool),
 		newJob:    newJob,
-		errCh:     make(chan error),
+		errCh:     errCh,
 	}
 	for i := range q.consumers {
 		q.consumers[i] = New(name+":consumer:"+strconv.Itoa(i), pool)
