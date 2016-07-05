@@ -14,6 +14,7 @@ type Config struct {
 
 func NewPool(config *Config) *redis.Pool {
 	return &redis.Pool{
+		MaxActive:   1000,
 		MaxIdle:     3,
 		IdleTimeout: 240 * time.Second,
 		Dial: func() (redis.Conn, error) {
